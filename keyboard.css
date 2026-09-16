@@ -1,0 +1,36 @@
+body{
+    font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+    background-size: 500px;
+    background-position: -1500px -1000px;
+      /* display: flex;
+    justify-content: center;
+    align-items: center; 
+} */
+
+}
+#form{
+    width: 100px;
+    height: 250px;
+    border: 2px solid rgb(160, 153, 153);
+    border-radius: 15px;
+    padding: 35px;
+    margin : 200px 200px ;
+    background-color: yellowgreen;
+    color:blue;
+    box-shadow: -3px 3px 10px #000;
+    /* display: flex;
+    justify-content: center;
+    align-items: center; */
+}
+p.input{
+    font-size: 20px;
+
+
+}
+input{
+    width: 100px;
+    border: 1px solid purple;
+    border-radius: 15px;
+    background-color: palevioletred;
+    box-shadow: inset -3px -3px 10px #000;
+}

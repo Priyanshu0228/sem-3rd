@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#090b14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>AapdaSathi (आपदा साथी) — Complete Disaster Management Ecosystem</title>
+
+  <!-- Google Fonts: Inter, Noto Sans Devanagari, JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+Devanagari:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            app: {
+              bg: '#090b14',
+              surface: '#0f1322',
+              card: 'rgba(255, 255, 255, 0.04)',
+              cardHover: 'rgba(255, 255, 255, 0.07)',
+              border: 'rgba(255, 255, 255, 0.10)',
+              borderLight: 'rgba(255, 255, 255, 0.20)'
+            },
+            accent: {
+              primary: '#6366f1',
+              emerald: '#10b981',
+              amber: '#f59e0b',
+              rose: '#f43f5e',
+              crimson: '#e11d48',
+              cyan: '#06b6d4',
+              violet: '#8b5cf6'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'Noto Sans Devanagari', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          },
+          animation: {
+            'marquee': 'marquee 25s linear infinite',
+            'laser': 'laser 2s ease-in-out infinite',
+            'pulse-glow': 'pulseGlow 2s infinite',
+            'spin-slow': 'spin 12s linear infinite'
+          },
+          keyframes: {
+            marquee: {
+              '0%': { transform: 'translateX(100%)' },
+              '100%': { transform: 'translateX(-100%)' }
+            },
+            laser: {
+              '0%, 100%': { top: '0%' },
+              '50%': { top: '95%' }
+            },
+            pulseGlow: {
+              '0%, 100%': { opacity: '0.6', transform: 'scale(1)' },
+              '50%': { opacity: '1', transform: 'scale(1.03)' }
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet Maps CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js"></script>
+
+  <!-- React 18, ReactDOM & Babel -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body {
+      background-color: #090b14;
+      color: #f8fafc;
+      font-family: 'Inter', 'Noto Sans Devanagari', sans-serif;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* Elegant White/Glass Sheen Styles */
+    .white-glass {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+    .white-card {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      backdrop-filter: blur(12px);
+    }
+    .white-elevated {
+      background: #ffffff;
+      color: #090b14;
+    }
+    .story-ring-gradient {
+      background: linear-gradient(135deg, #ffffff, #6366f1, #38bdf8, #ec4899);
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ==========================================
+    // 1. WEB AUDIO SYNTHESIZER & SPEECH ENGINE
+    // ==========================================
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.osc = null;
+        this.gain = null;
+        this.active = false;
+        this.interval = null;
+      }
+      init() {
+        if (!this.ctx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (AC) this.ctx = new AC();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+      }
+      playChime(freq = 880, dur = 140) {
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const o = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          o.type = 'sine';
+          o.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          g.gain.setValueAtTime(0.18, this.ctx.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur / 1000);
+          o.connect(g);
+          g.connect(this.ctx.destination);
+          o.start();
+          o.stop(this.ctx.currentTime + dur / 1000);
+        } catch(e) {}
+      }
+      startSiren() {
+        if (this.active) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          this.active = true;
+          this.osc = this.ctx.createOscillator();
+          this.gain = this.ctx.createGain();
+          this.osc.type = 'sawtooth';
+          this.gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+          this.osc.connect(this.gain);
+          this.gain.connect(this.ctx.destination);
+          let freq = 500;
+          let up = true;
+          this.osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          this.osc.start();
+          this.interval = setInterval(() => {
+            if (!this.ctx || !this.osc) return;
+            if (up) { freq += 50; if (freq >= 1250) up = false; }
+            else { freq -= 50; if (freq <= 480) up = true; }
+            this.osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          }, 35);
+        } catch(e) {}
+      }
+      stopSiren() {
+        if (!this.active) return;
+        this.active = false;
+        if (this.interval) clearInterval(this.interval);
+        if (this.osc) {
+          try { this.osc.stop(); this.osc.disconnect(); } catch(e) {}
+          this.osc = null;
+        }
+      }
+      speak(text, lang = 'en') {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        const utt = new SpeechSynthesisUtterance(text);
+        utt.lang = lang === 'hi' ? 'hi-IN' : 'en-IN';
+        utt.rate = 0.95;
+        window.speechSynthesis.speak(utt);
+      }
+      stopSpeaking() {
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      }
+    }
+    const audio = new SoundEngine();
+
+    // ==========================================
+    // 2. MASTER DISASTER KNOWLEDGE BASE
+    // ==========================================
+    const DISASTER_DATABASE = {
+      flood: {
+        id: 'flood',
+        name: 'Flash Flood & Surge',
+        nameHi: 'बाढ़ एवं जलभराव',
+        icon: '🌊',
+        level: '🔴 Danger',
+        timeline: 'Peak surge expected in 3–5 hrs (91% confidence)',
+        chain: 'Cloudburst ➔ High Runoff ➔ River Yamuna Overflow ➔ Urban Underpass Inundation',
+        whatHappened: 'Severe cloudburst triggered 135mm torrential rain. Yamuna level at 205.85m (0.52m above danger mark).',
+        where: 'Central Delhi & Yamuna Floodplain corridor',
+        impact: 'Ground floor submergence, electrical short circuits, waterborne contaminants.',
+        actionGuide: {
+          before: 'Move survival kit and electronics to upper floors. Store 10L clean water.',
+          during: 'Switch off main electrical circuit. Evacuate to rooftop if water rises. Never walk/drive in floodwater.',
+          after: 'Boil drinking water. Avoid touching wet appliances until certified by electricians.'
+        },
+        actions: [
+          { badge: 'CLIMB', title: 'Evacuate to Upper Floor / Rooftop', desc: 'Water rising 12 cm/hr in lowlands.' },
+          { badge: 'SHUTOFF', title: 'Cut Main Electrical Power Breaker', desc: 'Prevents electrocution in submerged areas.' },
+          { badge: 'AVOID', title: 'Never Drive/Wade Through Water', desc: '15cm moving water sweeps adults off feet.' }
+        ],
+        donts: ['DO NOT drive into submerged underpasses', 'DO NOT drink unboiled tap water', 'DO NOT touch wet wiring'],
+        audio: { en: 'Flood red alert. Evacuate low ground immediately. Disconnect main power breaker. Do not drive in floodwater.', hi: 'बाढ़ का रेड अलर्ट। तुरंत ऊपरी मंजिल या सुरक्षित शिविर में जाएं। बिजली बंद करें। बहते पानी में गाड़ी न चलाएं।' }
+      },
+      earthquake: {
+        id: 'earthquake',
+        name: 'Earthquake Tremors',
+        nameHi: 'भूकंप के झटके',
+        icon: '⚡',
+        level: '🔴 Critical',
+        timeline: 'Aftershocks probable in next 24-48 hrs',
+        chain: 'Faultline Slip ➔ Primary P-Waves ➔ Destructive S-Waves ➔ Masonry Fractures',
+        whatHappened: 'Seismic tremor Magnitude 6.3 registered along Himalayan faultline. Strong tremors across NCR.',
+        where: 'Northern India & NCR faultlines',
+        impact: 'Masonry wall cracking, falling glass facades, gas line ruptures.',
+        actionGuide: {
+          before: 'Fasten heavy shelves to walls. Identify safe sturdy tables in every room.',
+          during: 'DROP to knees, COVER head under desk, HOLD ON until shaking stops.',
+          after: 'Check for gas leaks with nose, never lighters. Use stairs only, never elevators.'
+        },
+        actions: [
+          { badge: 'DROP', title: 'DROP onto your hands and knees', desc: 'Prevents being thrown by seismic shaking.' },
+          { badge: 'COVER', title: 'COVER head under sturdy desk/table', desc: 'Shields skull from falling debris and glass.' },
+          { badge: 'HOLD', title: 'HOLD ON until shaking stops', desc: 'Stay under cover until tremor ceases.' }
+        ],
+        donts: ['DO NOT use elevators/lifts', 'DO NOT rush downstairs during shaking', 'DO NOT stand near windows'],
+        audio: { en: 'Earthquake alert. Drop to the floor now. Cover your head under a sturdy desk and hold on.', hi: 'भूकंप चेतावनी। तुरंत जमीन पर झुकें। मजबूत टेबल के नीचे सिर ढकें और पकड़े रहें।' }
+      },
+      fire: {
+        id: 'fire',
+        name: 'Building & Forest Fire',
+        nameHi: 'भीषण आग का प्रकोप',
+        icon: '🔥',
+        level: '🔴 Critical',
+        timeline: 'Smoke propagation time: 8-12 minutes',
+        chain: 'Electrical Spark ➔ Flame Propagation ➔ Carbon Monoxide Buildup ➔ Flashover',
+        whatHappened: 'Industrial transformer explosion ignited commercial facility, thick smoke spreading.',
+        where: 'Okhla Phase 2 / Industrial Zone',
+        impact: 'Toxic carbon monoxide asphyxiation, thermal radiation.',
+        actionGuide: {
+          before: 'Install smoke alarms. Memorize secondary fire stair exits.',
+          during: 'Crawl low under smoke. Feel doorknobs before opening. Evacuate via stairs.',
+          after: 'Cool any burns under clean tap water for 20 mins. Call 101/112.'
+        },
+        actions: [
+          { badge: 'CRAWL', title: 'Crawl low beneath smoke layer', desc: 'Breathable air remains within 30cm of floor.' },
+          { badge: 'FEEL', title: 'Feel doorknobs with back of hand', desc: 'If hot, DO NOT open. Fire is on other side.' },
+          { badge: 'EVACUATE', title: 'Evacuate via stairs & shut doors', desc: 'Closing doors starves flames of oxygen.' }
+        ],
+        donts: ['DO NOT use elevators (they act as smoke chimneys)', 'DO NOT re-enter burning buildings', 'DO NOT throw water on oil/electric fires'],
+        audio: { en: 'Fire emergency. Crawl low under smoke. Check door handles. Evacuate via stairs and call 101.', hi: 'आग आपातकाल। धुएं से बचने के लिए झुककर चलें। सीढ़ियों से निकलें और 101 पर कॉल करें।' }
+      },
+      cyclone: {
+        id: 'cyclone',
+        name: 'Cyclone & Super Storm',
+        nameHi: 'चक्रवाती तूफान',
+        icon: '🌀',
+        level: '🟡 Caution',
+        timeline: 'Landfall expected in 6 hours with 115 km/h gusts',
+        chain: 'Low Pressure Cell ➔ Deep Depression ➔ Severe Cyclonic Storm ➔ Coastal Inundation',
+        whatHappened: 'Severe cyclonic storm system advancing inland with heavy precipitation.',
+        where: 'Coastal Corridors & Adjoining Plains',
+        impact: 'Uprooted trees, snapped electrical cables, flying metal sheets.',
+        actionGuide: {
+          before: 'Tape glass windows in criss-cross pattern. Anchor outdoor furniture.',
+          during: 'Shelter in interior room without windows. Beware of the calm eye of the storm.',
+          after: 'Stay away from downed power lines. Beware of secondary flooding.'
+        },
+        actions: [
+          { badge: 'SHELTER', title: 'Stay inside reinforced interior room', desc: 'Far away from tin roofs and glass windows.' },
+          { badge: 'BOARD', title: 'Tape glass and secure loose items', desc: 'Prevents flying shrapnel projectiles.' },
+          { badge: 'HOLD', title: 'Do not go outside during storm lull', desc: 'Extreme reverse winds will follow immediately.' }
+        ],
+        donts: ['DO NOT venture near beach/riverbanks', 'DO NOT step outside during the storm eye lull', 'DO NOT touch sagging wires'],
+        audio: { en: 'Cyclone warning. Shelter in a sturdy interior room. Keep away from windows.', hi: 'चक्रवात चेतावनी। घर के सबसे सुरक्षित अंदरूनी कमरे में रहें। खिड़कियों से दूर रहें।' }
+      },
+      heatwave: {
+        id: 'heatwave',
+        name: 'Severe Heatwave (44°C)',
+        nameHi: 'भीषण लू व तापघात',
+        icon: '🌡️',
+        level: '🟡 Caution',
+        timeline: 'Peak temperatures 12:00 PM – 4:30 PM',
+        chain: 'Solar Radiation ➔ Urban Heat Island ➔ Hyperthermia Risk ➔ Heat Exhaustion',
+        whatHappened: 'Severe heatwave conditions with ambient temperature touching 44.5°C.',
+        where: 'North-West Urban Plains',
+        impact: 'Severe dehydration, heatstroke, dizziness in elderly.',
+        actionGuide: {
+          before: 'Prepare ORS solution and ice packs. Keep curtains drawn.',
+          during: 'Drink water even if not thirsty. Cover head with wet cotton cloth.',
+          after: 'If someone is dizzy, move them to shade and sponge neck/armpits with cold water.'
+        },
+        actions: [
+          { badge: 'HYDRATE', title: 'Drink water and ORS electrolytes', desc: 'Consume fluids every 20-30 minutes.' },
+          { badge: 'SHADE', title: 'Remain indoors during peak hours', desc: 'Avoid direct exposure from 12 PM to 4 PM.' },
+          { badge: 'COOL', title: 'Apply damp towels to neck/forehead', desc: 'Lowers core body temperature rapidly.' }
+        ],
+        donts: ['DO NOT leave children or pets in parked cars', 'DO NOT drink alcohol or heavy caffeine', 'DO NOT do heavy outdoor labor at noon'],
+        audio: { en: 'Heatwave advisory. Stay in shade, drink ORS and water frequently.', hi: 'लू की चेतावनी। छांव में रहें, भरपूर पानी और ओआरएस पिएं।' }
+      }
+    };
+
+    const SAFE_PLACES_DATABASE = [
+      { id: 1, name: 'AIIMS Emergency & Trauma Center', type: 'hospital', lat: 28.5672, lng: 77.2100, dist: '1.2 km', beds: 420, icu: 45, blood: 'A+, B+, O+ Avail', contact: '011-26588500', status: 'Ready 24x7 ✅', power: true, med: true },
+      { id: 2, name: 'Thyagaraj Multi-Purpose Relief Shelter', type: 'shelter', lat: 28.5804, lng: 77.2162, dist: '1.8 km', beds: 3500, icu: 0, blood: 'First Aid Kit', contact: '011-24601111', status: 'Active (340/3500 beds occupied) ✅', power: true, med: true },
+      { id: 3, name: 'Delhi Fire Service HQ (Station 1)', type: 'fire', lat: 28.6304, lng: 77.2289, dist: '3.4 km', beds: 50, icu: 0, blood: 'N/A', contact: '101', status: '8 Engines On Standby 🚒', power: true, med: false },
+      { id: 4, name: 'NDRF 8th Battalion Emergency Base', type: 'ndrf', lat: 28.5284, lng: 77.2741, dist: '4.9 km', beds: 2000, icu: 12, blood: 'Field Clinic', contact: '1078', status: '14 Inflatable Boats Ready 🚤', power: true, med: true },
+      { id: 5, name: 'Safdarjung Super-Speciality Hospital', type: 'hospital', lat: 28.5701, lng: 77.2065, dist: '1.4 km', beds: 310, icu: 30, blood: 'All Groups', contact: '011-26165060', status: 'Ready 24x7 ✅', power: true, med: true }
+    ];
+
+    const VISION_SCENARIOS = [
+      {
+        id: 'flood_road',
+        title: 'Flooded Underpass & Stalled Cars',
+        image: 'https://images.unsplash.com/photo-1547683905-f686c993aae5?auto=format&fit=crop&w=600&q=80',
+        hazard: 'Severe Flood Waterlogging Detected',
+        depth: '~48 cm (Above exhaust pipe & bumper)',
+        risk: 'HIGH: Engine Hydro-Lock & Vehicle Sweeping',
+        recommendation: 'Road UNSAFE for all two-wheelers and sedans. Turn Around, Don\'t Drown. Reroute via Elevated Flyover.'
+      },
+      {
+        id: 'fire_smoke',
+        title: 'Structural Fire & Carbon Monoxide',
+        image: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=600&q=80',
+        hazard: 'Active Structural Blaze & Toxic Smoke Plume',
+        depth: 'N/A',
+        risk: 'CRITICAL: Inhalation Risk & Flashover',
+        recommendation: 'Evacuate upwind. Crawl below smoke. Seal doors with wet cloth if trapped. Dial 101/112 immediately.'
+      },
+      {
+        id: 'building_fracture',
+        title: 'Structural Wall Shear Damage',
+        image: 'https://images.unsplash.com/photo-1590247813693-5541d1c609fd?auto=format&fit=crop&w=600&q=80',
+        hazard: 'Diagonal Shear Fracture in Load-Bearing Masonry',
+        depth: 'N/A',
+        risk: 'HIGH: Potential Secondary Aftershock Collapse',
+        recommendation: 'Do NOT enter building. Cordon off a 15-meter safety perimeter. Await municipal structural audit.'
+      }
+    ];
+
+    // ==========================================
+    // 3. MAIN APPLICATION COMPONENT
+    // ==========================================
+    function App() {
+      // Role & Navigation States
+      const [appRole, setAppRole] = useState('citizen'); // 'citizen' | 'authority' | 'rescue' | 'sandbox'
+      const [lang, setLang] = useState('en');
+      const [conn, setConn] = useState('online');
+      const [tab, setTab] = useState('home');
+      const [subView, setSubView] = useState(null);
+      const [selectedDisaster, setSelectedDisaster] = useState('flood');
+      const [sosOpen, setSosOpen] = useState(false);
+      const [sirenActive, setSirenActive] = useState(false);
+      const [speaking, setSpeaking] = useState(false);
+
+      // Level 1: Location & Telemetry
+      const [locationName, setLocationName] = useState('Connaught Place / Central Delhi');
+      const [gpsCoords, setGpsCoords] = useState({ lat: 28.5700, lng: 77.2150 });
+      const [locationRisk, setLocationRisk] = useState('🔴 High Risk');
+
+      // Level 3: AI Simulation Sliders
+      const [rainMm, setRainMm] = useState(128);
+      const [riverLevel, setRiverLevel] = useState(205.85); // Danger: 205.33m
+      const [tempC, setTempC] = useState(33);
+      const [windKmh, setWindKmh] = useState(48);
+      const [seismicVal, setSeismicVal] = useState(2.1);
+      const [soilSaturation, setSoilSaturation] = useState(84);
+
+      // Level 3: Vision Scanner State
+      const [visionScenario, setVisionScenario] = useState(VISION_SCENARIOS[0]);
+      const [isScanning, setIsScanning] = useState(false);
+      const [scanResult, setScanResult] = useState(VISION_SCENARIOS[0]);
+
+      // Level 3: Crowd Reports & Anti-Fraud
+      const [reports, setReports] = useState([
+        { id: 1, type: '🌊 Submerged Underpass', desc: 'Minto Road subways submerged in 4.5ft water. Two sedans stalled.', location: 'Minto Road Underpass', upvotes: 34, verified: true, time: '6m ago', status: 'SDRF Dispatched 🚤' },
+        { id: 2, type: '⚡ Snapped Live Cable', desc: 'Live electrical cable sparked into water near INA Metro Gate 2.', location: 'INA Metro Station', upvotes: 22, verified: true, time: '18m ago', status: 'Power Grid Alerted ⚡' },
+        { id: 3, type: '🌳 Uprooted Neem Tree', desc: 'Giant neem tree fell blocking 2 lanes of Ring Road near AIIMS flyover.', location: 'Ring Road AIIMS', upvotes: 15, verified: true, time: '35m ago', status: 'Clearance In Progress 🚜' }
+      ]);
+      const [newReportText, setNewReportText] = useState('');
+
+      // Family Safety Status
+      const [familyMembers, setFamilyMembers] = useState([
+        { id: 1, name: 'Priyanshu (You)', status: '🟢 SAFE', time: 'Just now', blood: 'O+ Positive', phone: '+91 98765 43210' },
+        { id: 2, name: 'Father (Rajesh)', status: '🟢 SAFE', time: '10m ago', blood: 'B+ Positive', phone: '+91 98111 22334' },
+        { id: 3, name: 'Mother (Sunita)', status: '🟢 SAFE', time: '14m ago', blood: 'O+ Positive', phone: '+91 98222 33445' },
+        { id: 4, name: 'Brother (Aman)', status: '🟡 CHECKING', time: '35m ago', blood: 'O+ Positive', phone: '+91 98333 44556' }
+      ]);
+
+      // Disaster Kit Family Size
+      const [familySize, setFamilySize] = useState(4);
+
+      // Disaster Training Quiz
+      const [drillAnswered, setDrillAnswered] = useState(false);
+      const [drillSelected, setDrillSelected] = useState(null);
+
+      // Leaflet Map & Dynamic Detour
+      const [evacDetourActive, setEvacDetourActive] = useState(false);
+      const mapRef = useRef(null);
+      const mapInstance = useRef(null);
+      const routeLayerRef = useRef(null);
+
+      // Auto-sliding alert carousel
+      const [carouselIdx, setCarouselIdx] = useState(0);
+      const alertKeys = Object.keys(DISASTER_DATABASE);
+
+      // AI Risk Formula: 0-100 score
+      const calculateRiskScore = () => {
+        let score = 25;
+        if (rainMm > 50) score += (rainMm - 50) * 0.35;
+        if (riverLevel > 205.33) score += (riverLevel - 205.33) * 35;
+        if (windKmh > 40) score += (windKmh - 40) * 0.38;
+        if (soilSaturation > 70) score += (soilSaturation - 70) * 0.3;
+        if (seismicVal > 3.0) score += (seismicVal - 3.0) * 12;
+        return Math.min(98, Math.max(12, Math.round(score)));
+      };
+      const riskScore = calculateRiskScore();
+
+      // Cycle alert carousel every 5s
+      useEffect(() => {
+        const t = setInterval(() => {
+          setCarouselIdx(prev => (prev + 1) % alertKeys.length);
+        }, 5000);
+        return () => clearInterval(t);
+      }, [alertKeys.length]);
+
+      // Acquire Real GPS
+      useEffect(() => {
+        if ('geolocation' in navigator) {
+          navigator.geolocation.getCurrentPosition(
+            pos => setGpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            () => {}
+          );
+        }
+      }, []);
+
+      // Leaflet Map Rendering
+      useEffect(() => {
+        if (tab === 'map' && mapRef.current && window.L) {
+          if (!mapInstance.current) {
+            const map = window.L.map(mapRef.current).setView([gpsCoords.lat, gpsCoords.lng], 13);
+            window.L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+
+            // User GPS Pin
+            window.L.marker([gpsCoords.lat, gpsCoords.lng]).addTo(map).bindPopup('<b>📍 Your Live GPS Pin</b><br/>Area: Moderate Flood Risk Zone').openPopup();
+
+            // Safe Shelters & Hospitals
+            SAFE_PLACES_DATABASE.forEach(p => {
+              const iconEmoji = p.type === 'hospital' ? '🏥' : p.type === 'shelter' ? '🛟' : p.type === 'fire' ? '🚒' : '⛑️';
+              const customIcon = window.L.divIcon({
+                html: `<div style="background:#ffffff; color:#090b14; border-radius:50%; width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-size:15px; border:2px solid #6366f1; box-shadow:0 6px 16px rgba(0,0,0,0.5); font-weight:bold;">${iconEmoji}</div>`,
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+              });
+              window.L.marker([p.lat, p.lng], { icon: customIcon }).addTo(map).bindPopup(`<b>${iconEmoji} ${p.name}</b><br/>Beds: ${p.beds} | ICU: ${p.icu}<br/>Blood: ${p.blood}<br/>📞 ${p.contact}`);
+            });
+
+            // Color-Coded Hazard Polygon
+            const floodPolygon = [
+              [28.5850, 77.2200], [28.5950, 77.2350], [28.5750, 77.2450], [28.5650, 77.2250]
+            ];
+            window.L.polygon(floodPolygon, { color: '#f43f5e', fillColor: '#f43f5e', fillOpacity: 0.22 }).addTo(map).bindPopup('<b>🔴 High Danger Flood Surge Zone</b><br/>Yamuna Level: 205.85m');
+
+            mapInstance.current = map;
+          }
+
+          // Evacuation Route Line
+          if (routeLayerRef.current) {
+            mapInstance.current.removeLayer(routeLayerRef.current);
+          }
+
+          const primaryPath = [
+            [gpsCoords.lat, gpsCoords.lng],
+            [28.5750, 77.2180],
+            [28.5804, 77.2162] // Thyagaraj Shelter
+          ];
+          const detourPath = [
+            [gpsCoords.lat, gpsCoords.lng],
+            [28.5680, 77.2120], // Elevated flyover waypoint
+            [28.5740, 77.2100],
+            [28.5804, 77.2162]
+          ];
+          const activePath = evacDetourActive ? detourPath : primaryPath;
+          routeLayerRef.current = window.L.polyline(activePath, {
+            color: evacDetourActive ? '#10b981' : '#f59e0b',
+            weight: 5,
+            dashArray: evacDetourActive ? '8, 8' : undefined,
+            opacity: 0.95
+          }).addTo(mapInstance.current);
+        }
+      }, [tab, evacDetourActive, gpsCoords]);
+
+      // Computer Vision Scan Trigger
+      const handleRunVisionScan = (scenario) => {
+        setVisionScenario(scenario);
+        setIsScanning(true);
+        audio.playChime(950, 90);
+        setTimeout(() => {
+          setIsScanning(false);
+          setScanResult(scenario);
+          audio.speak(`${scenario.hazard}. ${scenario.recommendation}`, lang);
+          if (window.confetti) window.confetti({ particleCount: 35, spread: 60 });
+        }, 1800);
+      };
+
+      const handleToggleSiren = () => {
+        if (sirenActive) {
+          audio.stopSiren();
+          setSirenActive(false);
+        } else {
+          audio.startSiren();
+          setSirenActive(true);
+        }
+      };
+
+      const handleVoiceGuidance = (dKey) => {
+        const d = DISASTER_DATABASE[dKey] || DISASTER_DATABASE.flood;
+        if (speaking) {
+          audio.stopSpeaking();
+          setSpeaking(false);
+        } else {
+          audio.speak(lang === 'hi' ? d.audio.hi : d.audio.en, lang);
+          setSpeaking(true);
+          setTimeout(() => setSpeaking(false), 7500);
+        }
+      };
+
+      const handleUpvote = (id) => {
+        setReports(reports.map(r => r.id === id ? { ...r, upvotes: r.upvotes + 1, verified: true } : r));
+        audio.playChime(1100, 80);
+      };
+
+      const handleAddReport = (e) => {
+        e.preventDefault();
+        if (!newReportText.trim()) return;
+        const newR = {
+          id: Date.now(),
+          type: '🚨 Citizen Alert',
+          desc: newReportText.trim(),
+          location: locationName,
+          upvotes: 1,
+          verified: false,
+          time: 'Just now',
+          status: conn === 'online' ? 'Synced to SDRF Mesh ✅' : 'Queued Locally ⏳'
+        };
+        setReports([newR, ...reports]);
+        setNewReportText('');
+        audio.playChime(850, 100);
+        if (window.confetti) window.confetti({ particleCount: 40, spread: 50 });
+      };
+
+      const handleMarkSelfSafe = () => {
+        setFamilyMembers(familyMembers.map(f => f.id === 1 ? { ...f, status: '🟢 SAFE', time: 'Just now' } : f));
+        audio.playChime(1200, 150);
+        if (window.confetti) window.confetti({ particleCount: 50, spread: 70 });
+      };
+
+      const handleMarkSelfDanger = () => {
+        setFamilyMembers(familyMembers.map(f => f.id === 1 ? { ...f, status: '🔴 NEED HELP', time: 'Just now' } : f));
+        setSosOpen(true);
+      };
+
+      const emergencySmsText = `🚨 AAPDASATHI EMERGENCY SOS DISTRESS!\nI require immediate rescue.\n📍 GPS: ${gpsCoords.lat.toFixed(5)}, ${gpsCoords.lng.toFixed(5)}\n🗺️ Live Map: https://maps.google.com/?q=${gpsCoords.lat.toFixed(5)},${gpsCoords.lng.toFixed(5)}\n⚠️ Area: ${locationName}\nDispatch SDRF / Ambulance immediately!`;
+
+      const activeAlert = DISASTER_DATABASE[alertKeys[carouselIdx]];
+
+      return (
+        <div className="max-w-md mx-auto min-h-screen bg-[#090b14] text-slate-100 border-x border-white/10 flex flex-col justify-between relative shadow-2xl overflow-x-hidden font-sans">
+
+          {/* ========================================== */}
+          {/* TOP SLIDING MARQUEE & ROLE SWITCHER */}
+          {/* ========================================== */}
+          <div className="sticky top-0 z-50 bg-[#090b14]/95 backdrop-blur-xl border-b border-white/10">
+            {/* Sliding Breaking News Marquee */}
+            <div className="bg-gradient-to-r from-rose-950 via-slate-900 to-indigo-950 border-b border-white/10 py-1 overflow-hidden whitespace-nowrap">
+              <div className="inline-block animate-marquee text-[11px] font-extrabold tracking-wider text-slate-100 uppercase">
+                ⚡ BREAKING: RED ALERT FOR DELHI NCR • YAMUNA RIVER AT 205.85m • 4,280 RELIEF SHELTER BEDS ACTIVE AT THYAGARAJ & AIIMS • AVOID MINTO ROAD UNDERPASS • DIAL 112 / 1078 FOR RESCUE BOATS •
+              </div>
+            </div>
+
+            {/* Platform Role Switcher */}
+            <div className="flex items-center justify-between px-3 py-1.5 bg-white/[0.03] border-b border-white/10 text-[11px] font-bold">
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+                <button onClick={() => { setAppRole('citizen'); setSubView(null); }} className={`px-2.5 py-0.5 rounded-full transition-all whitespace-nowrap ${appRole === 'citizen' ? 'bg-white text-slate-950 font-black shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                  🌐 Citizen App
+                </button>
+                <button onClick={() => { setAppRole('authority'); setSubView(null); }} className={`px-2.5 py-0.5 rounded-full transition-all whitespace-nowrap ${appRole === 'authority' ? 'bg-indigo-600 text-white font-black shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                  🏛️ Command Center
+                </button>
+                <button onClick={() => { setAppRole('rescue'); setSubView(null); }} className={`px-2.5 py-0.5 rounded-full transition-all whitespace-nowrap ${appRole === 'rescue' ? 'bg-emerald-600 text-white font-black shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                  🧑‍🚒 Rescue Dispatch
+                </button>
+                <button onClick={() => { setAppRole('sandbox'); setSubView(null); }} className={`px-2.5 py-0.5 rounded-full transition-all whitespace-nowrap ${appRole === 'sandbox' ? 'bg-amber-600 text-white font-black shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                  🧪 Sandbox
+                </button>
+              </div>
+
+              <button onClick={() => setLang(lang === 'en' ? 'hi' : 'en')} className="px-2 py-0.5 rounded-md bg-white/10 text-white font-mono text-[10px] border border-white/20">
+                {lang === 'en' ? 'हिंदी' : 'ENG'}
+              </button>
+            </div>
+
+            {/* Header Identity */}
+            <header className="p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => { setAppRole('citizen'); setTab('home'); setSubView(null); }}>
+                <div className="w-9 h-9 rounded-xl bg-white text-slate-950 flex items-center justify-center font-black text-xl shadow-lg shadow-white/20">
+                  ⚡
+                </div>
+                <div>
+                  <div className="font-black text-white text-base tracking-tight leading-none flex items-center gap-1.5">
+                    <span>{lang === 'en' ? 'AapdaSathi' : 'आपदा साथी'}</span>
+                    <span className="px-1.5 py-0.2 text-[8px] bg-indigo-600 text-white font-black rounded uppercase tracking-wider">ECOSYSTEM</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-medium">Offline-First AI Disaster Platform</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                  Ready ✅
+                </span>
+                <button onClick={() => setSosOpen(true)} className="px-2.5 py-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg shadow-rose-600/30 animate-pulse">
+                  SOS
+                </button>
+              </div>
+            </header>
+          </div>
+
+          {/* ========================================== */}
+          {/* MAIN CONTENT AREA */}
+          {/* ========================================== */}
+          <main className="p-3.5 flex-1 pb-24 space-y-4">
+
+            {/* ─────────────────────────────────────────── */}
+            {/* VIEW 1: AUTHORITY COMMAND CENTER */}
+            {/* ─────────────────────────────────────────── */}
+            {appRole === 'authority' && (
+              <div className="space-y-4 animate-fadeIn">
+                <div className="white-glass rounded-2xl p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="text-[9px] font-black uppercase tracking-wider text-indigo-400 bg-indigo-950 px-2 py-0.5 rounded border border-indigo-800">NDRF / SDRF MASTER HUB</span>
+                      <h2 className="text-base font-black text-white mt-1">Disaster Command Center</h2>
+                    </div>
+                    <span className="text-xs font-mono text-emerald-400 font-bold">● LIVE FEED</span>
+                  </div>
+
+                  {/* KPI Grid */}
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase">Active Incidents</div>
+                      <div className="text-2xl font-black text-rose-400 mt-0.5">14</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase">Affected Population</div>
+                      <div className="text-2xl font-black text-white mt-0.5">18,492</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase">Relief Shelter Beds</div>
+                      <div className="text-2xl font-black text-emerald-400 mt-0.5">4,280</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase">Rescue Teams Active</div>
+                      <div className="text-2xl font-black text-cyan-400 mt-0.5">24 Teams</div>
+                    </div>
+                  </div>
+
+                  {/* AI Resource & Supply Burn Rate */}
+                  <div className="p-3.5 rounded-xl bg-indigo-950/30 border border-indigo-800/60 space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-black text-indigo-300">🤖 AI Resource Shortage Prediction</span>
+                      <span className="text-[10px] font-mono text-amber-400">Warning</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-snug">
+                      Shelter Thyagaraj will reach 92% drinking water capacity in ~6.5 hours. Automated dispatch triggered to Central Logistics Warehouse B.
+                    </p>
+                  </div>
+
+                  {/* Live Incident Allocation Feed */}
+                  <div className="space-y-2 pt-1">
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Incident Response Matrix</div>
+                    {reports.map(r => (
+                      <div key={r.id} className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex justify-between items-start text-xs">
+                        <div>
+                          <div className="font-bold text-white">{r.type}</div>
+                          <div className="text-[11px] text-slate-300">{r.desc}</div>
+                          <div className="text-[10px] text-slate-400 mt-1">📍 {r.location} • 👍 {r.upvotes} verified votes</div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-950 text-indigo-300 border border-indigo-700">{r.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ─────────────────────────────────────────── */}
+            {/* VIEW 2: RESCUE TEAM DISPATCH */}
+            {/* ─────────────────────────────────────────── */}
+            {appRole === 'rescue' && (
+              <div className="space-y-4 animate-fadeIn">
+                <div className="white-glass rounded-2xl p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="text-[9px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">FIELD RESCUE APP</span>
+                      <h2 className="text-base font-black text-white mt-1">Rescue Team 04 — Active Missions</h2>
+                    </div>
+                    <span className="text-xs font-mono text-emerald-300 font-bold">14 Boats Ready</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 space-y-2">
+                    <div className="flex justify-between text-xs font-bold">
+                      <span className="text-white">Mission #1042: Yamuna Ghat Inundation</span>
+                      <span className="text-rose-400 font-black">CRITICAL</span>
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      24 citizens stranded on temple terrace. Flood current 2.1 m/s. Inflatable Rescue Boat (IRB-04) deployed.
+                    </p>
+                    <div className="flex gap-2 pt-1">
+                      <button className="flex-1 py-2 rounded-lg bg-emerald-600 text-white font-bold text-xs">Mark 18 Rescued</button>
+                      <button className="px-3 py-2 rounded-lg bg-slate-800 text-slate-300 font-bold text-xs border border-white/10">Request Drone Air-Drop</button>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 space-y-2">
+                    <div className="flex justify-between text-xs font-bold">
+                      <span className="text-white">Mission #1043: Minto Underpass Stalled Bus</span>
+                      <span className="text-amber-400 font-black">HIGH</span>
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      12 passengers on bus roof. Water depth 1.4m. Team 07 en-route with recovery ropes.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ─────────────────────────────────────────── */}
+            {/* VIEW 3: DISASTER SANDBOX (WHAT-IF SIMULATION) */}
+            {/* ─────────────────────────────────────────── */}
+            {appRole === 'sandbox' && (
+              <div className="space-y-4 animate-fadeIn">
+                <div className="white-glass rounded-2xl p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-950 px-2 py-0.5 rounded border border-amber-800">DIGITAL TWIN SIMULATOR</span>
+                      <h2 className="text-base font-black text-white mt-1">What-If Disaster Sandbox</h2>
+                    </div>
+                    <span className="text-xs font-mono text-amber-300 font-bold">Interactive Model</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Simulate extreme weather events below and watch the AI engine project the flood inundation zone, affected citizens, and bed deficit.
+                  </p>
+
+                  <div className="space-y-3 pt-2">
+                    <div>
+                      <div className="flex justify-between text-xs font-bold text-slate-200">
+                        <span>🌧️ Rainfall Scenario:</span>
+                        <span className="text-cyan-400 font-mono">{rainMm} mm/hr</span>
+                      </div>
+                      <input type="range" min="0" max="250" value={rainMm} onChange={e => setRainMm(Number(e.target.value))} className="w-full accent-cyan-400" />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-xs font-bold text-slate-200">
+                        <span>🌊 River Level Surge:</span>
+                        <span className="text-indigo-400 font-mono">{riverLevel.toFixed(2)} m (Danger: 205.33m)</span>
+                      </div>
+                      <input type="range" min="203.0" max="208.5" step="0.05" value={riverLevel} onChange={e => setRiverLevel(Number(e.target.value))} className="w-full accent-indigo-400" />
+                    </div>
+                  </div>
+
+                  {/* Projected Impact Card */}
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-slate-900 to-indigo-950 border border-indigo-700/60 space-y-2">
+                    <div className="text-[10px] font-bold text-indigo-300 uppercase">AI Projected Disaster Outcome</div>
+                    <div className="grid grid-cols-2 gap-2 text-center text-xs pt-1">
+                      <div className="p-2 bg-black/40 rounded-lg"><div className="text-slate-400">Flooded Area</div><div className="font-black text-rose-400 text-sm">{Math.round((riverLevel - 203) * 4.2)} sq. km</div></div>
+                      <div className="p-2 bg-black/40 rounded-lg"><div className="text-slate-400">At-Risk Citizens</div><div className="font-black text-amber-400 text-sm">{Math.round(rainMm * 140)} people</div></div>
+                    </div>
+                    <p className="text-xs text-slate-300 font-medium pt-1">
+                      ⚠️ <span className="text-white font-bold">Policy Recommendation:</span> Order preemptive evacuation of Sector 4 & 5 lowlands within 90 minutes.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ─────────────────────────────────────────── */}
+            {/* VIEW 4: CITIZEN SAFETY APP (PRIMARY INTERFACE) */}
+            {/* ─────────────────────────────────────────── */}
+            {appRole === 'citizen' && (
+              <>
+                {/* SUBVIEW: AI MULTI-DISASTER PREDICTION & SENSORS */}
+                {subView === 'ai_predict' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <button onClick={() => setSubView(null)} className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1">← Back to Dashboard</button>
+                    <div className="white-glass rounded-2xl p-4 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <h2 className="text-base font-black text-white flex items-center gap-2">
+                          <span>🤖</span> AI Multi-Disaster Prediction Engine
+                        </h2>
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">91% Confidence</span>
+                      </div>
+
+                      {/* Score Meter */}
+                      <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950/40 to-slate-900 border border-white/14 text-center space-y-2">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Multi-Sensor Calculated Risk Score</div>
+                        <div className={`text-5xl font-black ${riskScore >= 70 ? 'text-rose-400 animate-pulse' : riskScore >= 40 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                          {riskScore}%
+                        </div>
+                        <div className="text-xs font-black uppercase tracking-widest text-slate-200">
+                          {riskScore >= 70 ? '🔴 HIGH FLOOD & SURGE RISK' : riskScore >= 40 ? '🟡 MODERATE WEATHER CAUTION' : '🟢 SAFE & NORMAL'}
+                        </div>
+                      </div>
+
+                      {/* Predictive Timeline & Disaster Chain */}
+                      <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 space-y-2">
+                        <div className="text-xs font-black text-indigo-300 uppercase">⚡ Predictive Warning Timeline</div>
+                        <p className="text-xs text-slate-200">
+                          Flood peak likely within <span className="text-rose-400 font-bold">3–5 hours</span> based on upstream barrage discharge.
+                        </p>
+                        <div className="text-[11px] text-slate-400 font-mono pt-1">
+                          <span className="text-slate-300 font-bold">Disaster Chain:</span> Heavy Rain ➔ Saturated Soil (84%) ➔ Drainage Overflow ➔ Road Inundation
+                        </div>
+                      </div>
+
+                      {/* Live Sensor Sliders */}
+                      <div className="space-y-3 pt-2">
+                        <div>
+                          <div className="flex justify-between text-xs font-bold text-slate-200">
+                            <span>🌧️ Rainfall Intensity:</span>
+                            <span className="text-cyan-400 font-mono">{rainMm} mm/hr</span>
+                          </div>
+                          <input type="range" min="0" max="200" value={rainMm} onChange={e => setRainMm(Number(e.target.value))} className="w-full accent-cyan-400" />
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between text-xs font-bold text-slate-200">
+                            <span>🌊 River Stage (Yamuna):</span>
+                            <span className="text-indigo-400 font-mono">{riverLevel.toFixed(2)} m (Danger: 205.33m)</span>
+                          </div>
+                          <input type="range" min="203.0" max="208.0" step="0.05" value={riverLevel} onChange={e => setRiverLevel(Number(e.target.value))} className="w-full accent-indigo-400" />
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between text-xs font-bold text-slate-200">
+                            <span>🌱 Soil Saturation %:</span>
+                            <span className="text-emerald-400 font-mono">{soilSaturation}% (Landslide Risk)</span>
+                          </div>
+                          <input type="range" min="20" max="100" value={soilSaturation} onChange={e => setSoilSaturation(Number(e.target.value))} className="w-full accent-emerald-400" />
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between text-xs font-bold text-slate-200">
+                            <span>📈 Seismic Tremor (Richter):</span>
+                            <span className="text-rose-400 font-mono">{seismicVal.toFixed(1)} Richter</span>
+                          </div>
+                          <input type="range" min="0.5" max="7.5" step="0.1" value={seismicVal} onChange={e => setSeismicVal(Number(e.target.value))} className="w-full accent-rose-400" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SUBVIEW: AI VISION SCANNER */}
+                {subView === 'vision_scan' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <button onClick={() => setSubView(null)} className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1">← Back to Dashboard</button>
+                    <div className="white-glass rounded-2xl p-4 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <h2 className="text-base font-black text-white flex items-center gap-2">
+                          <span>📸</span> AI Image Disaster & Depth Detector
+                        </h2>
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">Computer Vision</span>
+                      </div>
+
+                      {/* Scenarios */}
+                      <div className="grid grid-cols-3 gap-2">
+                        {VISION_SCENARIOS.map(sc => (
+                          <button
+                            key={sc.id}
+                            onClick={() => handleRunVisionScan(sc)}
+                            className={`p-2 rounded-xl text-[10px] font-bold border transition-all ${visionScenario.id === sc.id ? 'bg-white text-slate-950 font-black shadow-md' : 'bg-white/[0.04] border-white/10 text-slate-300'}`}
+                          >
+                            {sc.title.split(' ')[0]} Scan
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Scanning Viewport */}
+                      <div className="relative rounded-2xl overflow-hidden border border-white/14 h-52 bg-slate-950">
+                        <img src={visionScenario.image} alt="Disaster Scene" className="w-full h-full object-cover" />
+                        {isScanning && (
+                          <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex flex-col justify-center items-center">
+                            <div className="absolute w-full h-1 bg-cyan-400 shadow-[0_0_15px_#22d3ee] animate-laser"></div>
+                            <div className="bg-black/90 px-3 py-1.5 rounded-full border border-cyan-400 text-xs font-mono font-bold text-cyan-300 animate-pulse">
+                              🔍 Neural Depth Segmentation...
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Vision Result */}
+                      {scanResult && !isScanning && (
+                        <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/14 space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs font-black text-white">{scanResult.hazard}</span>
+                            <span className="text-[10px] font-mono text-emerald-400 font-bold">Confidence: 97.4%</span>
+                          </div>
+                          {scanResult.depth !== 'N/A' && (
+                            <div className="text-xs font-mono text-cyan-300 font-bold">
+                              🌊 Estimated Water Depth: {scanResult.depth}
+                            </div>
+                          )}
+                          <div className="text-xs text-rose-300 font-bold">{scanResult.risk}</div>
+                          <p className="text-xs text-slate-300 leading-relaxed font-medium pt-1">
+                            ⚠️ <span className="text-white font-bold">Action Directive:</span> {scanResult.recommendation}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* SUBVIEW: FAMILY SAFETY NETWORK */}
+                {subView === 'family_net' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <button onClick={() => setSubView(null)} className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1">← Back to Dashboard</button>
+                    <div className="white-glass rounded-2xl p-4 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <h2 className="text-base font-black text-white flex items-center gap-2">
+                          <span>👨‍👩‍👧</span> Private Family Safety Circle
+                        </h2>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">4 Connected</span>
+                      </div>
+
+                      {/* 1-Tap Mark Safe */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <button onClick={handleMarkSelfSafe} className="p-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-1.5">
+                          <span>✅</span> Mark Myself SAFE
+                        </button>
+                        <button onClick={handleMarkSelfDanger} className="p-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg shadow-rose-600/30 flex items-center justify-center gap-1.5">
+                          <span>⚠️</span> Need Assistance
+                        </button>
+                      </div>
+
+                      {/* Family Status Cards */}
+                      <div className="space-y-2 pt-2">
+                        {familyMembers.map(m => (
+                          <div key={m.id} className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex justify-between items-center">
+                            <div>
+                              <div className="font-bold text-white text-xs">{m.name}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">Blood: {m.blood} • {m.phone}</div>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-xs font-black text-slate-100">{m.status}</span>
+                              <div className="text-[9px] text-slate-400 font-mono">{m.time}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SUBVIEW: 72-HOUR EMERGENCY KIT CALCULATOR */}
+                {subView === 'kit_calc' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <button onClick={() => setSubView(null)} className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1">← Back to Dashboard</button>
+                    <div className="white-glass rounded-2xl p-4 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <h2 className="text-base font-black text-white flex items-center gap-2">
+                          <span>🎒</span> Personalized Emergency Kit Assistant
+                        </h2>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">72-Hour Survival</span>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-between">
+                        <span className="text-xs font-bold text-white">Family Members Count:</span>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setFamilySize(Math.max(1, familySize - 1))} className="w-7 h-7 rounded-lg bg-white/10 text-white font-bold">-</button>
+                          <span className="font-mono font-black text-sm text-white px-2">{familySize} People</span>
+                          <button onClick={() => setFamilySize(familySize + 1)} className="w-7 h-7 rounded-lg bg-white/10 text-white font-bold">+</button>
+                        </div>
+                      </div>
+
+                      {/* Dynamic recommendations */}
+                      <div className="space-y-2 pt-1 text-xs">
+                        {[
+                          `💧 Water: ${familySize * 9} Liters (${familySize * 3}L/day for 72 hours)`,
+                          `🥫 High-Calorie Dry Food: ${familySize * 6} meal packs (Dry fruits/Chana)`,
+                          `🔦 LED Torches + Extra Batteries: ${Math.ceil(familySize / 2)} units`,
+                          `🔋 Power Banks (20000mAh): ${Math.ceil(familySize / 2)} units charged`,
+                          `🩹 First Aid: Tourniquet, ORS packets, Gauze, Antiseptic`,
+                          `📄 Waterproof Pouch: Aadhaar, Insurance, Cash, Prescriptions`
+                        ].map((item, i) => (
+                          <div key={i} className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex items-center gap-2.5">
+                            <input type="checkbox" defaultChecked className="w-4 h-4 rounded accent-emerald-500" />
+                            <span className="text-slate-200 font-medium">{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SUBVIEW: INTERACTIVE DISASTER TRAINING SIMULATION */}
+                {subView === 'drill_sim' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <button onClick={() => setSubView(null)} className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1">← Back to Dashboard</button>
+                    <div className="white-glass rounded-2xl p-4 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-950 px-2 py-0.5 rounded border border-amber-800">SCENARIO SIMULATION</span>
+                        <span className="text-xs font-mono text-emerald-400 font-bold">+100 Readiness Points</span>
+                      </div>
+
+                      <h3 className="text-sm font-black text-white leading-snug">
+                        🚨 Violent earthquake tremors start while you are on the 4th floor of an apartment. What is your immediate action?
+                      </h3>
+
+                      <div className="space-y-2 pt-1">
+                        {[
+                          'Sprint toward the elevator to get outside quickly',
+                          'DROP to hands and knees, COVER head under sturdy table, and HOLD ON',
+                          'Run down the crowded stairwell immediately',
+                          'Stand near the glass balcony window to call for help'
+                        ].map((opt, i) => (
+                          <button
+                            key={i}
+                            disabled={drillAnswered}
+                            onClick={() => {
+                              setDrillSelected(i);
+                              setDrillAnswered(true);
+                              if (i === 1) {
+                                audio.playChime(1100, 150);
+                                if (window.confetti) window.confetti({ particleCount: 40, spread: 60 });
+                              } else {
+                                audio.playChime(400, 180);
+                              }
+                            }}
+                            className={`w-full p-3.5 rounded-xl border text-left text-xs font-medium transition-all ${
+                              drillAnswered
+                                ? i === 1
+                                  ? 'bg-emerald-950 border-emerald-500 text-emerald-200 font-bold'
+                                  : i === drillSelected
+                                  ? 'bg-rose-950 border-rose-500 text-rose-200'
+                                  : 'bg-white/[0.02] border-white/10 text-slate-400'
+                                : 'bg-white/[0.04] border-white/10 text-slate-200 hover:bg-white/[0.08]'
+                            }`}
+                          >
+                            {String.fromCharCode(65 + i)}) {opt}
+                          </button>
+                        ))}
+                      </div>
+
+                      {drillAnswered && (
+                        <div className="p-3 rounded-xl bg-white/[0.04] border border-white/14 text-xs text-slate-200 space-y-1">
+                          <div className="font-black text-emerald-400">NDMA Safety Rationale:</div>
+                          <p className="text-slate-300">
+                            Elevators lose power and plunge/jam. Stairs experience shear failure during shaking. DROP, COVER, and HOLD ON protects against 87% of falling object injuries.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* SUBVIEW: POST-DISASTER INSURANCE DAMAGE CLAIM BUILDER */}
+                {subView === 'insurance_claim' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <button onClick={() => setSubView(null)} className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1">← Back to Dashboard</button>
+                    <div className="white-glass rounded-2xl p-4 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <h2 className="text-base font-black text-white flex items-center gap-2">
+                          <span>🧾</span> Insurance & Damage Claim Assistant
+                        </h2>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">Govt / Insurer Ready</span>
+                      </div>
+                      <p className="text-xs text-slate-300">
+                        Generate a structured preliminary claim dossier with geotagged timestamps and estimated repair costs.
+                      </p>
+
+                      <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 space-y-2 text-xs">
+                        <div className="flex justify-between font-bold text-white">
+                          <span>Claim Reference:</span>
+                          <span className="font-mono text-cyan-300">#CLM-2026-8841</span>
+                        </div>
+                        <div>Estimated Property Inundation: <span className="font-bold text-white">Ground Floor (45cm water)</span></div>
+                        <div>Damaged Electronics & Appliances: <span className="font-bold text-white">Refrigerator, Washing Machine, Inverter</span></div>
+                        <div>GPS Geotag: <span className="font-mono text-slate-300">28.5700° N, 77.2150° E</span></div>
+                        <button className="w-full mt-2 py-2.5 rounded-xl bg-white text-slate-950 font-black text-xs">
+                          Export Verified PDF Damage Dossier
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ─────────────────────────────────────────── */}
+                {/* PRIMARY TAB: HOME DASHBOARD (LENSKART / SHEIN STYLE) */}
+                {/* ─────────────────────────────────────────── */}
+                {!subView && tab === 'home' && (
+                  <div className="space-y-4 animate-fadeIn">
+
+                    {/* 1. LENSKART / SHEIN STYLE STORY CIRCLES */}
+                    <div className="flex gap-3 overflow-x-auto no-scrollbar py-1">
+                      {[
+                        { id: 'ai_predict', label: 'AI Risk', emoji: '🤖', badge: `${riskScore}%` },
+                        { id: 'vision_scan', label: 'AI Scan', emoji: '📸', badge: 'Photo' },
+                        { id: 'family_net', label: 'Family', emoji: '👨‍👩‍👧', badge: 'Safe' },
+                        { id: 'kit_calc', label: '72h Bag', emoji: '🎒', badge: 'Calc' },
+                        { id: 'drill_sim', label: 'Drills', emoji: '🎮', badge: 'Quiz' },
+                        { id: 'insurance_claim', label: 'Claims', emoji: '🧾', badge: 'PDF' }
+                      ].map(story => (
+                        <div
+                          key={story.id}
+                          onClick={() => setSubView(story.id)}
+                          className="flex flex-col items-center shrink-0 cursor-pointer group"
+                        >
+                          <div className="w-14 h-14 rounded-full p-[2px] story-ring-gradient flex items-center justify-center group-hover:scale-105 transition-transform shadow-md">
+                            <div className="w-full h-full rounded-full bg-[#090b14] flex items-center justify-center text-xl relative">
+                              <span>{story.emoji}</span>
+                              <span className="absolute -bottom-1 text-[8px] font-black bg-indigo-600 text-white px-1.5 py-0.2 rounded-full border border-black">{story.badge}</span>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-bold text-slate-300 mt-1">{story.label}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* 2. AUTO-SLIDING DYNAMIC DISASTER HERO CARD (WHITE GLASS SHEEN) */}
+                    <div className="relative rounded-3xl overflow-hidden white-glass p-4 shadow-2xl border border-white/20">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider bg-white text-slate-950 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-ping"></span>
+                          FLASH ALERT ({carouselIdx + 1}/{alertKeys.length})
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-300 font-bold">IMD / NDMA Broadcast</span>
+                      </div>
+
+                      <h2 className="text-lg font-black text-white flex items-center gap-2 mt-1">
+                        <span>{activeAlert.icon}</span>
+                        <span>{lang === 'en' ? activeAlert.name : activeAlert.nameHi}</span>
+                      </h2>
+
+                      <p className="text-xs text-slate-300 mt-1 leading-relaxed line-clamp-2">
+                        {activeAlert.whatHappened}
+                      </p>
+
+                      <div className="flex items-center gap-2 mt-3 pt-2 border-t border-white/10">
+                        <button
+                          onClick={() => {
+                            setSelectedDisaster(activeAlert.id);
+                            setTab('emergency');
+                          }}
+                          className="flex-1 py-2.5 px-3 rounded-xl bg-white hover:bg-slate-100 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-lg transition-all"
+                        >
+                          <span>{lang === 'en' ? 'What To Do Now (1-2-3)' : 'तुरंत सुरक्षा निर्देश'}</span>
+                          <span>→</span>
+                        </button>
+                        <button
+                          onClick={() => handleVoiceGuidance(activeAlert.id)}
+                          className="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white flex items-center gap-1"
+                        >
+                          🔊 {speaking ? 'Stop' : 'Voice'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 3. HOME DASHBOARD: LOCATION, RISK & TELEMETRY */}
+                    <div className="white-glass rounded-2xl p-4 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Your Live Location</div>
+                          <div className="text-sm font-extrabold text-white flex items-center gap-1 mt-0.5">
+                            <span className="text-rose-400">📍</span>
+                            <span>{locationName}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase">Live Risk</div>
+                          <span className="text-xs font-black text-rose-300 bg-rose-950/80 px-2.5 py-0.5 rounded-full border border-rose-800 inline-block mt-0.5">
+                            {locationRisk}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Real-time Weather Telemetry Strip */}
+                      <div className="grid grid-cols-4 gap-2 pt-2 border-t border-white/10 text-center font-mono">
+                        <div className="bg-white/[0.04] rounded-xl p-2 border border-white/10">
+                          <div className="text-[9px] text-slate-400">Rainfall</div>
+                          <div className="text-xs font-bold text-cyan-300">{rainMm} mm/h</div>
+                        </div>
+                        <div className="bg-white/[0.04] rounded-xl p-2 border border-white/10">
+                          <div className="text-[9px] text-slate-400">River Stage</div>
+                          <div className="text-xs font-bold text-indigo-300">205.85m</div>
+                        </div>
+                        <div className="bg-white/[0.04] rounded-xl p-2 border border-white/10">
+                          <div className="text-[9px] text-slate-400">Wind Gust</div>
+                          <div className="text-xs font-bold text-amber-300">{windKmh} km/h</div>
+                        </div>
+                        <div className="bg-white/[0.04] rounded-xl p-2 border border-white/10">
+                          <div className="text-[9px] text-slate-400">Temp / UV</div>
+                          <div className="text-xs font-bold text-rose-300">{tempC}°C</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 4. GIANT SOS EMERGENCY TRIGGER BUTTON */}
+                    <button
+                      onClick={() => setTab('emergency')}
+                      className="w-full p-4 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-indigo-600 text-white font-black text-base flex items-center justify-between shadow-2xl shadow-rose-600/30 active:scale-98 transition-all border border-white/20"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl animate-bounce">🚨</span>
+                        <div className="text-left">
+                          <div className="uppercase tracking-wide font-black">{lang === 'en' ? "I'M IN AN EMERGENCY" : "🚨 मैं आपातकाल में हूँ"}</div>
+                          <div className="text-xs font-normal text-rose-100/80">{lang === 'en' ? 'One tap instant disaster protocols' : 'भूकंप, बाढ़, आग तुरंत एक्शन'}</div>
+                        </div>
+                      </div>
+                      <span className="text-xl font-bold">→</span>
+                    </button>
+
+                    {/* 5. 6-GRID HIGH-VALUE INTERACTIVE ACTION SHELF */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <button onClick={() => setSubView('ai_predict')} className="p-3.5 rounded-2xl white-glass text-left hover:border-indigo-400 transition-all shadow-md group">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-2xl group-hover:scale-110 transition-transform">🤖</span>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">{riskScore}% Risk</span>
+                        </div>
+                        <div className="text-xs font-bold text-white">AI Risk Engine</div>
+                        <div className="text-[10px] text-slate-400">0-100 Multi-sensor gauge</div>
+                      </button>
+
+                      <button onClick={() => setSubView('vision_scan')} className="p-3.5 rounded-2xl white-glass text-left hover:border-cyan-400 transition-all shadow-md group">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-2xl group-hover:scale-110 transition-transform">📸</span>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">Vision</span>
+                        </div>
+                        <div className="text-xs font-bold text-white">AI Camera Scan</div>
+                        <div className="text-[10px] text-slate-400">Flood depth & damage scan</div>
+                      </button>
+
+                      <button onClick={() => setTab('map')} className="p-3.5 rounded-2xl white-glass text-left hover:border-emerald-400 transition-all shadow-md group">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-2xl group-hover:scale-110 transition-transform">🗺️</span>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">Live GPS</span>
+                        </div>
+                        <div className="text-xs font-bold text-white">Disaster Map</div>
+                        <div className="text-[10px] text-slate-400">Shelters & detour routing</div>
+                      </button>
+
+                      <button onClick={() => setSosOpen(true)} className="p-3.5 rounded-2xl bg-gradient-to-br from-rose-950 to-slate-900 border border-rose-800 text-left shadow-lg animate-pulse">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-2xl">🆘</span>
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-rose-600 text-white">SOS</span>
+                        </div>
+                        <div className="text-xs font-black text-rose-300">SOS Emergency Hub</div>
+                        <div className="text-[10px] text-rose-300/80">Siren & SMS dispatch</div>
+                      </button>
+                    </div>
+
+                    {/* 6. DIRECT 24x7 HELPLINES */}
+                    <div className="p-3 rounded-2xl white-glass space-y-2">
+                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">⚡ 24x7 Emergency Speed Dials</div>
+                      <div className="grid grid-cols-4 gap-2 text-center text-xs font-bold font-mono">
+                        <a href="tel:112" className="p-2 bg-white/[0.05] hover:bg-white/10 text-white border border-white/10 rounded-xl">112<br/><span className="text-[9px] text-slate-400 font-normal">All Dispatch</span></a>
+                        <a href="tel:108" className="p-2 bg-white/[0.05] hover:bg-white/10 text-emerald-300 border border-white/10 rounded-xl">108<br/><span className="text-[9px] text-slate-400 font-normal">Ambulance</span></a>
+                        <a href="tel:101" className="p-2 bg-white/[0.05] hover:bg-white/10 text-amber-300 border border-white/10 rounded-xl">101<br/><span className="text-[9px] text-slate-400 font-normal">Fire Dept</span></a>
+                        <a href="tel:1078" className="p-2 bg-white/[0.05] hover:bg-white/10 text-cyan-300 border border-white/10 rounded-xl">1078<br/><span className="text-[9px] text-slate-400 font-normal">NDRF Boats</span></a>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ─────────────────────────────────────────── */}
+                {/* TAB 2: EMERGENCY ACTION PROTOCOLS (1-2-3) */}
+                {/* ─────────────────────────────────────────── */}
+                {!subView && tab === 'emergency' && (
+                  <div className="space-y-4 animate-fadeIn">
+                    <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
+                      {Object.values(DISASTER_DATABASE).map(d => (
+                        <button
+                          key={d.id}
+                          onClick={() => setSelectedDisaster(d.id)}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap border shrink-0 ${selectedDisaster === d.id ? 'bg-white text-slate-950 font-black shadow-md' : 'bg-white/[0.04] border-white/10 text-slate-300'}`}
+                        >
+                          {d.icon} {lang === 'en' ? d.name.split(' ')[0] : d.nameHi}
+                        </button>
+                      ))}
+                    </div>
+
+                    {(() => {
+                      const d = DISASTER_DATABASE[selectedDisaster] || DISASTER_DATABASE.flood;
+                      return (
+                        <div className="space-y-3">
+                          <div className="p-4 rounded-2xl white-glass space-y-2 border border-white/20">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <span className="text-[10px] font-black uppercase bg-rose-600 text-white px-2 py-0.5 rounded">{d.level}</span>
+                                <h2 className="text-xl font-black text-white mt-1">{d.icon} {lang === 'en' ? d.name : d.nameHi}</h2>
+                              </div>
+                              <button onClick={() => handleVoiceGuidance(d.id)} className="p-2.5 rounded-xl bg-white/10 border border-white/20 text-xs font-bold text-white">
+                                🔊 {speaking ? 'Stop' : 'Voice'}
+                              </button>
+                            </div>
+                            <div className="text-xs text-slate-300 leading-snug">{d.whatHappened}</div>
+                          </div>
+
+                          {/* 1-2-3 Action Badges */}
+                          <div className="space-y-2">
+                            <div className="text-xs font-bold uppercase text-slate-400">WHAT TO DO NOW (1-2-3 Action)</div>
+                            {d.actions.map((act, i) => (
+                              <div key={i} className="p-3.5 rounded-2xl white-glass flex items-start gap-3 shadow-md">
+                                <div className="w-10 h-10 rounded-xl bg-white text-slate-950 flex items-center justify-center font-black text-xs shrink-0 shadow-md">
+                                  {act.badge}
+                                </div>
+                                <div>
+                                  <div className="text-xs font-bold text-white">{act.title}</div>
+                                  <div className="text-xs text-slate-300 leading-relaxed">{act.desc}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Before, During, After Accordion */}
+                          <div className="p-4 rounded-2xl white-glass space-y-2">
+                            <div className="text-xs font-black text-white uppercase">📋 Complete Disaster Checklist</div>
+                            <div className="text-xs text-slate-300"><span className="font-bold text-amber-300">Before:</span> {d.actionGuide.before}</div>
+                            <div className="text-xs text-slate-300"><span className="font-bold text-rose-300">During:</span> {d.actionGuide.during}</div>
+                            <div className="text-xs text-slate-300"><span className="font-bold text-emerald-300">After:</span> {d.actionGuide.after}</div>
+                          </div>
+
+                          {/* DO NOT warnings */}
+                          <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-800 space-y-1.5">
+                            <div className="text-xs font-black text-rose-300 uppercase">❌ CRITICAL DO NOTS</div>
+                            {d.donts.map((dt, i) => (
+                              <div key={i} className="text-xs text-rose-200 flex items-start gap-2">
+                                <span>•</span>
+                                <span>{dt}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* ─────────────────────────────────────────── */}
+                {/* TAB 3: LIVE DISASTER MAP & SHELTERS */}
+                {/* ─────────────────────────────────────────── */}
+                {!subView && tab === 'map' && (
+                  <div className="space-y-3 animate-fadeIn">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h2 className="text-base font-black text-white flex items-center gap-1.5">
+                          <span>🗺️</span> Live Safe Shelters & Evacuation Map
+                        </h2>
+                        <p className="text-[10px] text-slate-400">Color-coded disaster zones & dynamic detours</p>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">GPS Live</span>
+                    </div>
+
+                    {/* Leaflet Map */}
+                    <div ref={mapRef} className="w-full h-80 rounded-2xl border border-white/20 overflow-hidden bg-slate-950 shadow-2xl"></div>
+
+                    {/* Detour Switcher */}
+                    <div className="p-3.5 rounded-2xl white-glass space-y-2">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-white">Target Safe Haven: <span className="text-emerald-300">Thyagaraj Shelter (1.8 km)</span></span>
+                        <span className="text-[10px] font-mono text-slate-400">8 min route</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setEvacDetourActive(!evacDetourActive);
+                          audio.playChime(950, 100);
+                        }}
+                        className={`w-full py-2.5 rounded-xl font-bold text-xs border transition-all ${evacDetourActive ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-white/10 text-white border-white/20'}`}
+                      >
+                        {evacDetourActive ? '✅ Active: Elevated Ring Road Detour (Underpass Avoided)' : '⚠️ Simulate Underpass Hazard: Click to Reroute'}
+                      </button>
+                    </div>
+
+                    {/* Nearest Safe Place Card */}
+                    <div className="p-4 rounded-2xl white-glass space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black uppercase text-emerald-300 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-700">NEAREST RELIEF REFUGE</span>
+                        <span className="text-xs font-bold text-emerald-300">1.8 km away</span>
+                      </div>
+                      <div className="font-extrabold text-white text-sm">Thyagaraj Multi-Purpose Relief Shelter</div>
+                      <div className="text-xs text-slate-300">Capacity: 3,500 beds • Medical Staff Ready • Generator Power Backup ✅</div>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <a href="tel:011-24601111" className="flex-1 py-2 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl text-center border border-white/20">
+                          📞 Call Shelter
+                        </a>
+                        <a
+                          href={`https://maps.google.com/?q=28.5804,77.2162`}
+                          target="_blank"
+                          className="py-2 px-4 bg-white text-slate-950 font-black text-xs rounded-xl shadow-md text-center"
+                        >
+                          🧭 Open Navigation
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+          </main>
+
+          {/* ========================================== */}
+          {/* BOTTOM NAVIGATION BAR */}
+          {/* ========================================== */}
+          <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#090b14]/95 backdrop-blur-xl border-t border-white/10 p-2 flex justify-around items-center z-40">
+            <button onClick={() => { setAppRole('citizen'); setTab('home'); setSubView(null); }} className={`flex flex-col items-center text-xs font-bold ${tab === 'home' && !subView ? 'text-white' : 'text-slate-400'}`}>
+              <span className="text-lg">🏠</span>
+              <span className="text-[10px]">Home</span>
+            </button>
+
+            <button onClick={() => { setAppRole('citizen'); setTab('emergency'); setSubView(null); }} className="relative -top-3 flex flex-col items-center">
+              <div className="w-13 h-13 p-3 bg-gradient-to-tr from-rose-600 via-rose-500 to-indigo-600 rounded-2xl text-white shadow-xl shadow-rose-600/40 flex items-center justify-center font-bold text-xl border border-white/20">
+                🚨
+              </div>
+              <span className="text-[10px] font-bold text-white mt-0.5">Emergency</span>
+            </button>
+
+            <button onClick={() => { setAppRole('citizen'); setSubView('ai_predict'); }} className={`flex flex-col items-center text-xs font-bold ${subView === 'ai_predict' ? 'text-indigo-400' : 'text-slate-400'}`}>
+              <span className="text-lg">🤖</span>
+              <span className="text-[10px]">AI Risk</span>
+            </button>
+
+            <button onClick={() => { setAppRole('citizen'); setTab('map'); setSubView(null); }} className={`flex flex-col items-center text-xs font-bold ${tab === 'map' && !subView ? 'text-cyan-400' : 'text-slate-400'}`}>
+              <span className="text-lg">🗺️</span>
+              <span className="text-[10px]">Map</span>
+            </button>
+          </nav>
+
+          {/* ========================================== */}
+          {/* HIGH-URGENCY FULLSCREEN SOS MODAL */}
+          {/* ========================================== */}
+          {sosOpen && (
+            <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl p-4 flex flex-col justify-between">
+              <div className="flex justify-between items-center pt-2">
+                <span className="text-xs font-black text-rose-500 uppercase tracking-widest animate-pulse">🚨 EMERGENCY SOS ACTIVATED</span>
+                <button onClick={() => { audio.stopSiren(); setSosOpen(false); }} className="px-3 py-1 bg-white/10 text-white text-xs font-bold rounded-lg border border-white/20">Close</button>
+              </div>
+
+              <div className="text-center space-y-4 my-auto">
+                <div className="w-36 h-36 mx-auto rounded-full bg-gradient-to-tr from-rose-600 via-rose-500 to-indigo-600 flex items-center justify-center text-white font-black text-4xl shadow-[0_0_50px_rgba(244,63,94,0.8)] animate-pulse border-4 border-white">
+                  SOS
+                </div>
+                <h2 className="text-xl font-black text-white">Live GPS Distress Locked</h2>
+                <div className="inline-block p-2.5 bg-white/[0.06] rounded-xl text-xs text-slate-200 font-mono border border-white/20">
+                  📍 {gpsCoords.lat.toFixed(5)}° N, {gpsCoords.lng.toFixed(5)}° E (±4m Accuracy)
+                </div>
+
+                {/* 1-Tap SMS & WhatsApp Dispatch */}
+                <div className="grid grid-cols-2 gap-2 max-w-xs mx-auto pt-2">
+                  <a
+                    href={`https://api.whatsapp.com/send?text=${encodeURIComponent(emergencySmsText)}`}
+                    target="_blank"
+                    className="p-3 bg-emerald-600 text-white font-black text-xs rounded-xl text-center shadow-lg shadow-emerald-600/30"
+                  >
+                    💬 WhatsApp SOS
+                  </a>
+                  <a
+                    href={`sms:112?body=${encodeURIComponent(emergencySmsText)}`}
+                    className="p-3 bg-white text-slate-950 font-black text-xs rounded-xl text-center shadow-lg shadow-white/30"
+                  >
+                    📱 SMS to 112
+                  </a>
+                </div>
+
+                <button
+                  onClick={handleToggleSiren}
+                  className="w-full py-3 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl border border-white/20"
+                >
+                  {sirenActive ? 'Mute Siren Tone' : '🔊 Play High-Decibel Siren Synth'}
+                </button>
+              </div>
+
+              <div className="text-center text-xs text-slate-400 pb-2 font-mono">
+                Offline Auto-Sync Queue: Active • SDRF / NDRF Mesh Ready
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
